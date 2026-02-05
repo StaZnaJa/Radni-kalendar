@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radni kalendar — lifetime verzija</title>
+  
+  <!-- PWA meta tags -->
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Radni Kalendar">
+  
+  <!-- Ikonice za PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
+  <!-- CSS -->
+  <style>
+    :root{
+      --bg: #f4f6f9;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --accent:#4f46e5;
+      --shadow: 0 6px 18px rgba(15,23,42,0.08);
+      --radius:14px;
+      --cell-radius:6px;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:linear-gradient(180deg, var(--bg), #eef2ff 100%);
+      color:#0f172a;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:18px;
+      box-sizing:border-box;
+    }
+
+    .app {
+      max-width:920px;
+      margin:0 auto;
+    }
+
+    header {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:14px;
+    }
+    h1{font-size:20px;margin:0;}
+    .controls {
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .btn {
+      background:var(--card);
+      border-radius:10px;
+      padding:8px 12px;
+      box-shadow:var(--shadow);
+      border:1px solid rgba(15,23,42,0.04);
+      font-weight:600;
+      cursor:pointer;
+      transition: all 0.2s ease;
+      font-size:14px;
+      white-space:nowrap;
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+    .btn-export {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+    }
+    .btn-backup {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+      border: none;
+    }
+    .btn-restore {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      color: white;
+      border: none;
+    }
+
+    .panel {
+      background:var(--card);
+      border-radius:var(--radius);
+      padding:12px;
+      box-shadow:var(--shadow);
+      margin-bottom:12px;
+    }
+
+    .top-row {
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+    }
+
+    /* calendar */
+    .calendar {
+      display:grid;
+      grid-template-columns: 1fr 300px;
+      gap:12px;
+    }
+
+    @media (max-width:800px){
+      .calendar{grid-template-columns:1fr;}
+      .controls{justify-content:center;margin-top:8px;}
+    }
+
+    .cal-card{
+      padding:12px;
+    }
+
+    .cal-nav {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:8px;
+    }
+    .month-title { font-weight:700; font-size:16px; }
+
+    .weekday-row{
+      display:grid;
+      grid-template-columns: repeat(7,1fr);
+      gap:1px;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:1px;
+      background-color: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .weekday-row > div {
+      padding: 8px 4px;
+      text-align: center;
+      background: var(--card);
+    }
+
+    /* Naglašavanje vikenda u headeru */
+    .weekday-row > div:nth-child(6),
+    .weekday-row > div:nth-child(7) {
+      background: #f8fafc;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .grid-days{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap:1px;
+      background-color: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      position: relative;
+    }
+
+    /* POJAČANA GRANICA IZMEĐU PETKA I SUBOTE */
+    .grid-days::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      bottom: -1px;
+      left: calc(5/7 * 100% - 0.5px);
+      width: 3px;
+      background: #94a3b8;
+      pointer-events: none;
+      z-index: 1;
+      box-shadow: 0 0 2px rgba(0,0,0,0.1);
+    }
+
+    .day {
+      min-height:80px;
+      background:var(--card);
+      border-radius:0;
+      padding:6px;
+      box-sizing:border-box;
+      cursor:pointer;
+      position:relative;
+      transition:all .12s ease;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-start;
+      border: none;
+    }
+    .day:hover{ 
+      transform:translateY(-2px); 
+      box-shadow: 0 4px 12px rgba(2,6,23,0.1);
+      z-index: 2;
+    }
+    .muted-day{
+      opacity:0.3;
+      background: #f8fafc;
+    }
+    
+    /* Naglašavanje vikenda - subota i nedelja */
+    .day:nth-child(7n+6),
+    .day:nth-child(7n) {
+      background: #f8fafc;
+    }
+    .day:nth-child(7n+6):hover,
+    .day:nth-child(7n):hover {
+      background: #f1f5f9;
+    }
+
+    .day-number { 
+      font-weight:700; 
+      font-size:13px; 
+      margin-bottom:4px; 
+      color:#0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    /* Svetlija boja broja za vikend */
+    .day:nth-child(7n+6) .day-number,
+    .day:nth-child(7n) .day-number {
+      color: #475569;
+    }
+
+    .smena-chip{
+      margin-top:4px;
+      align-self:flex-start;
+      padding:4px 6px;
+      border-radius:6px;
+      font-weight:700;
+      font-size:11px;
+      color:white;
+      box-shadow:0 2px 6px rgba(2,6,23,0.08);
+      line-height: 1;
+    }
+
+    /* Komentar u danu */
+    .day-comment {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      background: #f8fafc;
+      padding: 2px 4px;
+      border-radius: 3px;
+      border-left: 2px solid #e5e7eb;
+    }
+
+    /* Tamniji komentar za vikend */
+    .day:nth-child(7n+6) .day-comment,
+    .day:nth-child(7n) .day-comment {
+      background: #f1f5f9;
+      border-left-color: #cbd5e1;
+    }
+
+    /* color map */
+    .s-D { background: #16a34a; } /* D */
+    .s-N { background: #2563eb; } /* N */
+    .s-Lp{ background: #f97316; color:white;} /* lekarski */
+    .s-S { background: #7c3aed; } /* slava */
+    .s-Š { background: #f59e0b; color:#000 } /* škola */
+    .s-P { background: #8b5cf6; } /* polaganje */
+    .s-Go{ background: #a16207; } /* godišnji */
+    .s-Bo{ background: #dc2626; } /* bolovanje */
+    .s-Po{ background: #94a3b8; color:#000;} /* plaćeno */
+    .s-R { background: #06b6d4; } /* rezerva - DODATA */
+
+    /* Stil za praznike */
+    .holiday .day-number {
+      color: #dc2626;
+    }
+    .holiday {
+      background: #fef2f2 !important;
+    }
+    .holiday .day-comment {
+      background: #fee2e2;
+      border-left-color: #dc2626;
+    }
+
+    /* Praznici na vikend - kombinovani stil */
+    .holiday.day:nth-child(7n+6),
+    .holiday.day:nth-child(7n) {
+      background: #fef2f2 !important;
+    }
+
+    .empty { 
+      background: #f8fafc; 
+      border: 1px dashed #e5e7eb;
+    }
+
+    /* POBOLJŠANA DESNA KOLONA - STATISTIKA */
+    .summary {
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .summary-section {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(15,23,42,0.03);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .stats-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border-radius: 10px;
+      padding: 14px;
+      border: 1px solid rgba(15,23,42,0.05);
+      transition: all 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(2,6,23,0.08);
+    }
+
+    .stat-header {
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .stat-subvalue {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .input-field {
+      flex: 1;
+    }
+
+    .input-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .input-field input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      font-weight: 700;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    .input-field input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .coef-display {
+      background: linear-gradient(135deg, #4f46e5, #4338ca);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* Stilovi za neto bilans */
+    .neto-positive { color: #16a34a; }
+    .neto-negative { color: #dc2626; }
+    .neto-zero { color: var(--muted); }
+
+    .neto-card {
+      background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+      border-color: rgba(34, 197, 94, 0.2) !important;
+    }
+
+    .neto-card.negative {
+      background: linear-gradient(135deg, #fef2f2, #fee2e2) !important;
+      border-color: rgba(239, 68, 68, 0.2) !important;
+    }
+
+    .neto-card.zero {
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+    }
+
+    /* Indikator za komentar */
+    .has-comment::after {
+      content: "💬";
+      font-size: 10px;
+      margin-left: 4px;
+      opacity: 0.7;
+    }
+
+    /* Godina indikator */
+    .year-indicator {
+      background: #f1f5f9;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    /* modal */
+    .modal-backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(2,6,23,0.45);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:999;
+    }
+    .modal {
+      width:400px;
+      max-width:94%;
+      background:var(--card);
+      border-radius:12px;
+      padding:16px;
+      box-shadow:0 18px 50px rgba(2,6,23,0.4);
+    }
+    .modal h3 { margin:0 0 12px 0; font-size:16px; }
+    .options { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .opt-btn {
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid rgba(15,23,42,0.06);
+      background:linear-gradient(180deg,#fff,#fafafa);
+      cursor:pointer;
+      min-width:60px;
+      font-weight:700;
+    }
+
+    /* Komentar sekcija u modalu */
+    .comment-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .comment-section label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .comment-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 60px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .comment-input:focus {
+      outline: none;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    footer { margin-top:16px; color:var(--muted); font-size:13px; text-align:center; }
+
+    /* tiny helpers */
+    .muted { color:var(--muted); font-size:13px;}
+    .pill { padding:6px 8px; border-radius:999px; background:#fff; box-shadow:var(--shadow); border:1px solid rgba(15,23,42,0.04); display:inline-block; font-weight:700; }
+
+    /* Stil za backup modal */
+    .backup-info {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 12px 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .backup-info ul {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .backup-info li {
+      margin-bottom: 4px;
+    }
+    .warning {
+      color: #dc2626;
+      font-weight: 600;
+    }
+
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Radni kalendar — lifetime verzija</h1>
+      <div class="muted">Klik na datum za izbor smene • Sve se čuva lokalno</div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-export" id="exportBtn">📊 Excel</button>
+      <button class="btn btn-backup" id="backupBtn">💾 Backup</button>
+      <button class="btn btn-restore" id="restoreBtn">↩️ Restore</button>
+      <button class="btn" id="todayBtn">Danas</button>
+      <div class="small-muted">Verzija: 2.0</div>
+    </div>
+  </header>
+
+  <div class="calendar">
+    <div class="panel cal-card">
+      <div class="cal-nav">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn" id="prevMonth">&larr;</button>
+          <div class="month-title" id="monthTitle">Oktobar 2025</div>
+          <button class="btn" id="nextMonth">&rarr;</button>
+        </div>
+        <div class="muted">Prikaži / menjaj mesece</div>
+      </div>
+
+      <div class="weekday-row" aria-hidden="true">
+        <div>Pon</div><div>Uto</div><div>Sre</div><div>Čet</div><div>Pet</div><div>Sub</div><div>Ned</div>
+      </div>
+
+      <div class="grid-days" id="daysGrid"></div>
+    </div>
+
+    <aside class="summary">
+      <!-- Fond sekcija -->
+      <div class="summary-section">
+        <div class="section-title">Fond časova</div>
+        <div class="input-group">
+          <div class="input-field">
+            <label>Osmočasovni</label>
+            <input id="osmoInput" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="input-field">
+            <label>Smenski</label>
+            <input id="smenskiInput" type="number" min="1" step="1" placeholder="1">
+          </div>
+        </div>
+        <div class="coef-display" id="coefDisplay">
+          Koeficijent: —
+        </div>
+      </div>
+
+      <!-- Mesečni bilans -->
+      <div class="summary-section">
+        <div class="section-title">Mesečni bilans</div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-header">
+              <div class="stat-label">Ostvareno</div>
+            </div>
+            <div class="stat-value" id="ostvarenoVal">0 h</div>
+            <div class="stat-subvalue" id="monthLabel">—</div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="stat-card">
+              <div class="stat-label">Duguje</div>
+              <div class="stat-value" id="dugujeVal">0 h</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Zaradio</div>
+              <div class="stat-value" id="zaradioVal">0 h</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Godišnji bilans -->
+      <div class="summary-section">
+        <div class="section-title">
+          Godišnji bilans
+          <div class="year-indicator" id="yearIndicator">2025</div>
+        </div>
+        <div class="stats-grid">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="stat-card">
+              <div class="stat-label">Ukupno duguje</div>
+              <div class="stat-value" id="yearDuguje">0 h</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Ukupno zaradio</div>
+              <div class="stat-value" id="yearZaradio">0 h</div>
+            </div>
+          </div>
+          
+          <div class="stat-card neto-card" id="netoBilansContainer">
+            <div class="stat-header">
+              <div class="stat-label">Neto bilans</div>
+              <div class="stat-label" id="netoStatusLabel">—</div>
+            </div>
+            <div class="stat-value" id="yearNeto">0 h</div>
+            <div class="stat-subvalue">Zaradio - Duguje</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>Sačuvano u lokalnoj memoriji uređaja • Backup/Restore za sigurnosnu kopiju</footer>
+</div>
+
+<!-- modal (dynamically shown) -->
+<div id="modalRoot" style="display:none;"></div>
+
+<script>
+// Dodaj SheetJS biblioteku za Excel export
+const script = document.createElement('script');
+script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+script.onload = initApp;
+document.head.appendChild(script);
+
+function initApp() {
+  // --- configuration ---
+  const SHIFT_DEFS = {
+    D: {label:'D (dnevna)', h:12},
+    N: {label:'N (noćna)', h:12},
+    Lp:{label:'Lp (lekarski)', h:12},
+    Š: {label:'Š (škola)', h:8},
+    P: {label:'P (polaganje)', h:8},
+    Go:{label:'Go (godišnji)', h:8},
+    Bo:{label:'Bo (bolovanje)', h:8},
+    Po:{label:'Po (plaćeno)', h:8},
+    S: {label:'S (slava)', h:8},
+    R: {label:'R (rezerva)', h:12}
+  };
+
+  // API za praznike
+  const PRAZNICI_API = 'https://date.nager.at/api/v3/PublicHolidays';
+
+  // Fallback fiksni praznici
+  const FALLBACK_HOLIDAYS = {
+    '01-01': 'Nova Godina',
+    '01-02': 'Nova Godina',
+    '01-07': 'Božić',
+    '02-15': 'Dan državnosti Srbije',
+    '02-16': 'Dan državnosti Srbije',
+    '05-01': 'Praznik rada',
+    '05-02': 'Praznik rada',
+    '11-11': 'Dan primirja'
+  };
+
+  let HOLIDAYS_CACHE = {};
+
+  // UI elements
+  const daysGrid = document.getElementById('daysGrid');
+  const monthTitle = document.getElementById('monthTitle');
+  const prevMonthBtn = document.getElementById('prevMonth');
+  const nextMonthBtn = document.getElementById('nextMonth');
+  const todayBtn = document.getElementById('todayBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const backupBtn = document.getElementById('backupBtn');
+  const restoreBtn = document.getElementById('restoreBtn');
+  const osmoInput = document.getElementById('osmoInput');
+  const smenskiInput = document.getElementById('smenskiInput');
+  const coefDisplay = document.getElementById('coefDisplay');
+  const ostvarenoVal = document.getElementById('ostvarenoVal');
+  const dugujeVal = document.getElementById('dugujeVal');
+  const zaradioVal = document.getElementById('zaradioVal');
+  const monthLabel = document.getElementById('monthLabel');
+  const yearDuguje = document.getElementById('yearDuguje');
+  const yearZaradio = document.getElementById('yearZaradio');
+  const yearNeto = document.getElementById('yearNeto');
+  const netoStatusLabel = document.getElementById('netoStatusLabel');
+  const yearIndicator = document.getElementById('yearIndicator');
+  const modalRoot = document.getElementById('modalRoot');
+  const netoBilansContainer = document.getElementById('netoBilansContainer');
+
+  // state
+  let viewDate = new Date();
+  let smenaData = loadSmenaData();
+  let commentsData = loadCommentsData();
+
+  // init
+  initPraznici().then(() => {
+    render();
+  });
+
+  // --- PRAZNICI API - POBOLJŠANA VERZIJA ---
+  async function initPraznici() {
+    const currentYear = new Date().getFullYear();
+    
+    // PAMETNO UČITAVANJE: trenutna godina + sledećih 4 godine = 5 godina keša
+    const yearsToLoad = [];
+    for (let i = 0; i < 5; i++) {
+      yearsToLoad.push(currentYear + i);
+    }
+    
+    console.log(`Učitavam praznike za godine: ${yearsToLoad.join(', ')}`);
+    
+    await Promise.all(yearsToLoad.map(year => ucitajPraznikeZaGodinu(year)));
+    
+    // Proveri da li je potrebno učitati još godina pri promeni godine
+    setInterval(proveriAktuelnostPraznika, 24 * 60 * 60 * 1000); // Jednom dnevno
+  }
+
+  async function proveriAktuelnostPraznika() {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth(); // 0-11
+    
+    // Ako smo u decembru, učitaj praznike za sledeću godinu
+    if (currentMonth === 11 && !HOLIDAYS_CACHE[currentYear + 1]) {
+      console.log('Decembar je - učitavam praznike za sledeću godinu...');
+      await ucitajPraznikeZaGodinu(currentYear + 1);
+    }
+    
+    // Proveri da li imamo keš za narednih 5 godina
+    for (let i = 0; i < 5; i++) {
+      const yearToCheck = currentYear + i;
+      if (!HOLIDAYS_CACHE[yearToCheck]) {
+        console.log(`Nema keša za ${yearToCheck} - učitavam...`);
+        await ucitajPraznikeZaGodinu(yearToCheck);
+      }
+    }
+  }
+
+  async function ucitajPraznikeZaGodinu(godina) {
+    if (HOLIDAYS_CACHE[godina]) return;
+
+    try {
+      const response = await fetch(`${PRAZNICI_API}/${godina}/RS`);
+      if (!response.ok) throw new Error('API greška');
+      
+      const praznici = await response.json();
+      HOLIDAYS_CACHE[godina] = {};
+      
+      praznici.forEach(praznik => {
+        HOLIDAYS_CACHE[godina][praznik.date] = praznik.localName;
+      });
+      
+      console.log(`✓ Učitani praznici za ${godina}: ${Object.keys(HOLIDAYS_CACHE[godina]).length} praznika`);
+    } catch (error) {
+      console.warn(`⚠ Nije moguće učitati praznike za ${godina}:`, error);
+      // Koristimo fallback samo za fiksne praznike
+      HOLIDAYS_CACHE[godina] = {};
+      
+      // Popuni fallback praznike za ovu godinu
+      Object.keys(FALLBACK_HOLIDAYS).forEach(key => {
+        HOLIDAYS_CACHE[godina][`${godina}-${key}`] = FALLBACK_HOLIDAYS[key];
+      });
+    }
+  }
+
+  function isHoliday(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    const monthDay = `${month}-${day}`;
+    
+    // Provera API praznika
+    if (HOLIDAYS_CACHE[year] && HOLIDAYS_CACHE[year][dateStr]) {
+      return HOLIDAYS_CACHE[year][dateStr];
+    }
+    
+    // Provera fallback praznika
+    if (FALLBACK_HOLIDAYS[monthDay]) {
+      return FALLBACK_HOLIDAYS[monthDay];
+    }
+    
+    return false;
+  }
+
+  // --- storage ---
+  function loadSmenaData(){
+    try{
+      const raw = localStorage.getItem('smena-data');
+      return raw ? JSON.parse(raw) : {};
+    }catch(e){ 
+      console.error('Greška pri učitavanju smena:', e);
+      return {}; 
+    }
+  }
+  function saveSmenaData(){
+    try{
+      localStorage.setItem('smena-data', JSON.stringify(smenaData));
+    }catch(e){
+      console.error('Greška pri čuvanju smena:', e);
+    }
+  }
+
+  function loadCommentsData(){
+    try{
+      const raw = localStorage.getItem('comments-data');
+      return raw ? JSON.parse(raw) : {};
+    }catch(e){ 
+      console.error('Greška pri učitavanju komentara:', e);
+      return {}; 
+    }
+  }
+  function saveCommentsData(){
+    try{
+      localStorage.setItem('comments-data', JSON.stringify(commentsData));
+    }catch(e){
+      console.error('Greška pri čuvanju komentara:', e);
+    }
+  }
+
+  function fundKeyForDate(date){
+    const y = date.getFullYear();
+    const m = (date.getMonth()+1).toString().padStart(2,'0');
+    return `funds-${y}-${m}`;
+  }
+  function loadFundsFor(date){
+    const key = fundKeyForDate(date);
+    try{
+      const raw = localStorage.getItem(key);
+      if(!raw) return {osmo:0, smenski:0};
+      const obj = JSON.parse(raw);
+      return {osmo: Number(obj.osmo||0), smenski: Number(obj.smenski||0)};
+    }catch(e){ 
+      console.error('Greška pri učitavanju fondova:', e);
+      return {osmo:0, smenski:0}; 
+    }
+  }
+  function saveFundsFor(date, osmo, smenski){
+    const key = fundKeyForDate(date);
+    try{
+      localStorage.setItem(key, JSON.stringify({osmo:Number(osmo||0), smenski:Number(smenski||0)}));
+    }catch(e){
+      console.error('Greška pri čuvanju fondova:', e);
+    }
+  }
+
+  function getAllFundsData() {
+    const fundsData = {};
+    for(let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if(key.startsWith('funds-')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if(raw) {
+            fundsData[key] = JSON.parse(raw);
+          }
+        } catch(e) {
+          console.warn(`Greška pri učitavanju fondova za ${key}:`, e);
+        }
+      }
+    }
+    return fundsData;
+  }
+
+  // --- BACKUP & RESTORE FUNKCIONALNOST ---
+  function createBackup() {
+    try {
+      const backupData = {
+        version: '2.0',
+        created: new Date().toISOString(),
+        smenaData: smenaData,
+        commentsData: commentsData,
+        fundsData: getAllFundsData(),
+        metadata: {
+          totalShifts: Object.keys(smenaData).length,
+          totalComments: Object.keys(commentsData).length,
+          totalFunds: Object.keys(getAllFundsData()).length
+        }
+      };
+      
+      const dataStr = JSON.stringify(backupData, null, 2);
+      const dataBlob = new Blob([dataStr], {type: 'application/json'});
+      
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      const dateStr = new Date().toISOString().split('T')[0];
+      link.download = `radni_kalendar_backup_${dateStr}.json`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      URL.revokeObjectURL(url);
+      
+      showMessage('✅ Backup uspešno kreiran! Sačuvao si fajl na telefonu.', 'success');
+      
+      return true;
+    } catch (error) {
+      console.error('Greška pri kreiranju backup-a:', error);
+      showMessage('❌ Greška pri kreiranju backup-a. Proveri konzolu.', 'error');
+      return false;
+    }
+  }
+
+  function restoreFromBackup(file) {
+    if (!file) return;
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+      try {
+        const backupData = JSON.parse(e.target.result);
+        
+        // Validacija backup fajla
+        if (!backupData.version || !backupData.smenaData || !backupData.commentsData) {
+          showMessage('❌ Fajl nije validan backup fajl radnog kalendara.', 'error');
+          return;
+        }
+        
+        // Prikaži potvrdu sa detaljima
+        showRestoreConfirmation(backupData);
+        
+      } catch (error) {
+        console.error('Greška pri čitanju backup fajla:', error);
+        showMessage('❌ Greška pri čitanju fajla. Proveri da li je validan JSON.', 'error');
+      }
+    };
+    
+    reader.onerror = function() {
+      showMessage('❌ Greška pri čitanju fajla.', 'error');
+    };
+    
+    reader.readAsText(file);
+  }
+
+  function performRestore(backupData) {
+    try {
+      // Sačuvaj stare podatke pre restora (za slučaj da treba da se vratiš)
+      const oldBackup = {
+        smenaData: {...smenaData},
+        commentsData: {...commentsData}
+      };
+      localStorage.setItem('last-restore-backup', JSON.stringify(oldBackup));
+      
+      // Restore smena
+      if (backupData.smenaData && typeof backupData.smenaData === 'object') {
+        smenaData = backupData.smenaData;
+        localStorage.setItem('smena-data', JSON.stringify(smenaData));
+      }
+      
+      // Restore komentara
+      if (backupData.commentsData && typeof backupData.commentsData === 'object') {
+        commentsData = backupData.commentsData;
+        localStorage.setItem('comments-data', JSON.stringify(commentsData));
+      }
+      
+      // Restore fondova
+      if (backupData.fundsData && typeof backupData.fundsData === 'object') {
+        Object.keys(backupData.fundsData).forEach(key => {
+          localStorage.setItem(key, JSON.stringify(backupData.fundsData[key]));
+        });
+      }
+      
+      showMessage('✅ Restore uspešan! Podaci su vraćeni.', 'success');
+      
+      // Osveži prikaz
+      render();
+      
+    } catch (error) {
+      console.error('Greška pri restore-u:', error);
+      showMessage('❌ Greška pri restore-u podataka.', 'error');
+    }
+  }
+
+  function showRestoreConfirmation(backupData) {
+    modalRoot.innerHTML = '';
+    modalRoot.style.display = 'block';
+    
+    const mb = document.createElement('div');
+    mb.className = 'modal-backdrop';
+    mb.addEventListener('click', (e) => {
+      if(e.target===mb) closeModal();
+    });
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    
+    const h = document.createElement('h3');
+    h.textContent = 'Potvrda restore-a';
+    modal.appendChild(h);
+    
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'backup-info';
+    infoDiv.innerHTML = `
+      <strong>Detalji backup-a:</strong>
+      <ul>
+        <li>Verzija: ${backupData.version || 'nepoznata'}</li>
+        <li>Kreiran: ${backupData.created ? new Date(backupData.created).toLocaleString('sr-RS') : 'nepoznato'}</li>
+        <li>Broj smena: ${backupData.metadata?.totalShifts || Object.keys(backupData.smenaData || {}).length}</li>
+        <li>Broj komentara: ${backupData.metadata?.totalComments || Object.keys(backupData.commentsData || {}).length}</li>
+        <li>Broj fondova: ${backupData.metadata?.totalFunds || Object.keys(backupData.fundsData || {}).length}</li>
+      </ul>
+      <p class="warning">⚠ <strong>UPOZORENJE:</strong> Ovo će zameniti sve postojeće podatke!</p>
+    `;
+    modal.appendChild(infoDiv);
+    
+    const btnContainer = document.createElement('div');
+    btnContainer.style.display = 'flex';
+    btnContainer.style.gap = '10px';
+    btnContainer.style.marginTop = '16px';
+    btnContainer.style.justifyContent = 'flex-end';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'opt-btn';
+    cancelBtn.textContent = 'Otkaži';
+    cancelBtn.addEventListener('click', closeModal);
+    
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'opt-btn';
+    restoreBtn.textContent = 'Restore';
+    restoreBtn.style.background = 'linear-gradient(180deg, #dc2626, #b91c1c)';
+    restoreBtn.style.color = 'white';
+    restoreBtn.addEventListener('click', () => {
+      performRestore(backupData);
+      closeModal();
+    });
+    
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(restoreBtn);
+    modal.appendChild(btnContainer);
+    
+    mb.appendChild(modal);
+    modalRoot.appendChild(mb);
+  }
+
+  function showMessage(text, type = 'info') {
+    // Ukloni postojeće poruke
+    const existingMsg = document.querySelector('.message-toast');
+    if (existingMsg) existingMsg.remove();
+    
+    const msg = document.createElement('div');
+    msg.className = `message-toast ${type}`;
+    msg.textContent = text;
+    msg.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${type === 'success' ? '#10b981' : '#ef4444'};
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(msg);
+    
+    setTimeout(() => {
+      msg.style.animation = 'slideOut 0.3s ease';
+      setTimeout(() => msg.remove(), 300);
+    }, 4000);
+    
+    // Dodaj animacije ako već nisu
+    if (!document.querySelector('#message-animations')) {
+      const style = document.createElement('style');
+      style.id = 'message-animations';
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(100%); opacity: 0; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+
+  // --- calendar rendering ---
+  function render(){
+    const monthNames = ['Januar','Februar','Mart','April','Maj','Jun','Jul','Avgust','Septembar','Oktobar','Novembar','Decembar'];
+    const y = viewDate.getFullYear();
+    const m = viewDate.getMonth();
+    monthTitle.textContent = `${monthNames[m]} ${y}`;
+    monthLabel.textContent = `${monthNames[m]} ${y}`;
+    yearIndicator.textContent = y;
+
+    const firstOfMonth = new Date(y, m, 1);
+    const lastOfMonth = new Date(y, m+1, 0);
+    const daysInMonth = lastOfMonth.getDate();
+    const firstWeekday = firstOfMonth.getDay() === 0 ? 7 : firstOfMonth.getDay();
+
+    daysGrid.innerHTML = '';
+    
+    for(let i=1;i<firstWeekday;i++){
+      const blank = document.createElement('div');
+      blank.className = 'day empty muted-day';
+      daysGrid.appendChild(blank);
+    }
+
+    for(let d=1; d<=daysInMonth; d++){
+      const dt = new Date(y, m, d);
+      const iso = toIsoDate(dt);
+      const cell = document.createElement('div');
+      cell.className = 'day';
+      
+      const holidayName = isHoliday(dt);
+      if (holidayName) {
+        cell.classList.add('holiday');
+        cell.title = holidayName;
+      }
+      
+      const today = new Date();
+      const isToday = (today.getFullYear()===dt.getFullYear() && today.getMonth()===dt.getMonth() && today.getDate()===dt.getDate());
+      if(isToday){
+        cell.style.background = 'linear-gradient(135deg, #f0f9ff, #e0f2fe)';
+        cell.style.border = '1px solid #7dd3fc';
+      }
+      
+      const dn = document.createElement('div');
+      dn.className = 'day-number';
+      dn.textContent = d;
+      
+      if (commentsData[iso]) {
+        dn.classList.add('has-comment');
+      }
+      
+      cell.appendChild(dn);
+
+      const code = smenaData[iso];
+      if(code){
+        const chip = document.createElement('div');
+        chip.className = `smena-chip s-${code}`;
+        chip.textContent = code;
+        cell.appendChild(chip);
+      }
+
+      const comment = commentsData[iso];
+      if (comment) {
+        const commentEl = document.createElement('div');
+        commentEl.className = 'day-comment';
+        commentEl.textContent = comment;
+        commentEl.title = comment;
+        cell.appendChild(commentEl);
+      }
+
+      cell.addEventListener('click', () => openModalForDate(dt, cell));
+      daysGrid.appendChild(cell);
+    }
+
+    const funds = loadFundsFor(viewDate);
+    osmoInput.value = funds.osmo || '';
+    smenskiInput.value = funds.smenski || '';
+    updateCoefDisplay();
+    computeAndDisplayStats();
+  }
+
+  // --- modal ---
+  function openModalForDate(date, cellEl){
+    const iso = toIsoDate(date);
+    showModal(date, iso);
+  }
+
+  function showModal(date, iso){
+    modalRoot.innerHTML = ''; 
+    modalRoot.style.display = 'block';
+    
+    const mb = document.createElement('div'); 
+    mb.className = 'modal-backdrop';
+    mb.addEventListener('click', (e) => { 
+      if(e.target===mb) closeModal(); 
+    });
+    
+    const modal = document.createElement('div'); 
+    modal.className = 'modal';
+    
+    const h = document.createElement('h3');
+    const d = date.getDate();
+    const mNames = ['jan','feb','mar','apr','maj','jun','jul','avg','sep','okt','nov','dec'];
+    
+    const holidayName = isHoliday(date);
+    const holidayText = holidayName ? ` • ${holidayName}` : '';
+    
+    h.textContent = `Izaberi smenu — ${d}. ${mNames[date.getMonth()]} ${date.getFullYear()}${holidayText}`;
+    modal.appendChild(h);
+
+    const options = document.createElement('div'); 
+    options.className = 'options';
+    
+    for(const code of Object.keys(SHIFT_DEFS)){
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.textContent = `${code}`;
+      btn.title = `${SHIFT_DEFS[code].label} — ${SHIFT_DEFS[code].h}h`;
+      btn.addEventListener('click', () => {
+        smenaData[iso] = code;
+        saveSmenaData();
+        closeModal();
+        render();
+      });
+      options.appendChild(btn);
+    }
+
+    const commentSection = document.createElement('div');
+    commentSection.className = 'comment-section';
+    
+    const commentLabel = document.createElement('label');
+    commentLabel.textContent = 'Komentar za dan:';
+    commentSection.appendChild(commentLabel);
+    
+    const commentInput = document.createElement('textarea');
+    commentInput.className = 'comment-input';
+    commentInput.placeholder = 'Unesi komentar za ovaj dan...';
+    commentInput.value = commentsData[iso] || '';
+    commentSection.appendChild(commentInput);
+    
+    modal.appendChild(commentSection);
+
+    const del = document.createElement('button');
+    del.className = 'opt-btn';
+    del.style.borderColor = 'rgba(220,38,38,0.16)';
+    del.style.color = '#dc2626';
+    del.textContent = 'Briši smenu';
+    del.addEventListener('click', () => {
+      if(smenaData[iso]) delete smenaData[iso];
+      saveSmenaData();
+      closeModal();
+      render();
+    });
+
+    const cancel = document.createElement('button');
+    cancel.className = 'opt-btn';
+    cancel.textContent = 'Otkaži';
+    cancel.addEventListener('click', () => { closeModal(); });
+
+    const saveComment = document.createElement('button');
+    saveComment.className = 'opt-btn';
+    saveComment.textContent = 'Sačuvaj komentar';
+    saveComment.style.background = 'linear-gradient(180deg, #4f46e5, #4338ca)';
+    saveComment.style.color = 'white';
+    saveComment.addEventListener('click', () => {
+      const commentText = commentInput.value.trim();
+      if (commentText) {
+        commentsData[iso] = commentText;
+      } else {
+        delete commentsData[iso];
+      }
+      saveCommentsData();
+      closeModal();
+      render();
+    });
+
+    const wrap = document.createElement('div');
+    wrap.appendChild(options);
+    
+    const bottomRow = document.createElement('div');
+    bottomRow.style.display = 'flex';
+    bottomRow.style.gap = '8px';
+    bottomRow.style.marginTop = '12px';
+    bottomRow.appendChild(del);
+    bottomRow.appendChild(cancel);
+    bottomRow.appendChild(saveComment);
+    wrap.appendChild(bottomRow);
+
+    modal.appendChild(wrap);
+    mb.appendChild(modal);
+    modalRoot.appendChild(mb);
+  }
+
+  function closeModal(){
+    modalRoot.style.display = 'none';
+    modalRoot.innerHTML = '';
+  }
+
+  // --- statistics ---
+  function computeAndDisplayStats(){
+    const y = viewDate.getFullYear();
+    const m = viewDate.getMonth();
+    const last = new Date(y, m+1, 0).getDate();
+    const funds = loadFundsFor(viewDate);
+    const osmo = Number(funds.osmo || 0);
+    const smenski = Number(funds.smenski || 0) || 1;
+    const coef = safeDivide(osmo, smenski);
+    coefDisplay.textContent = `Koeficijent: ${isFinite(coef) ? round2(coef) : '—'}`;
+
+    let ostvareno = 0;
+    for(let d=1; d<=last; d++){
+      const iso = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const code = smenaData[iso];
+      if(code && SHIFT_DEFS[code]){
+        const def = SHIFT_DEFS[code];
+        if(def.h === 8){
+          ostvareno += 8;
+        } else if(def.h === 12){
+          ostvareno += (12 * coef);
+        } else {
+          ostvareno += def.h;
+        }
+      }
+    }
+    const ostShow = fmtHours(ostvareno);
+    ostvarenoVal.textContent = ostShow;
+
+    const diff = osmo - ostvareno;
+    if(diff > 0){
+      dugujeVal.textContent = formatHoursWhole(diff);
+      zaradioVal.textContent = '0 h';
+    } else if(diff < 0){
+      dugujeVal.textContent = '0 h';
+      zaradioVal.textContent = formatHoursWhole(Math.abs(diff));
+    } else {
+      dugujeVal.textContent = '0 h';
+      zaradioVal.textContent = '0 h';
+    }
+
+    // YEARLY aggregate
+    const displayedYear = viewDate.getFullYear();
+    let totalDuguje = 0;
+    let totalZaradio = 0;
+    
+    for(let mm=0; mm<12; mm++){
+      const dateForMonth = new Date(displayedYear, mm, 1);
+      const key = fundKeyForDate(dateForMonth);
+      const fundsRaw = localStorage.getItem(key);
+      
+      let monthHasShifts = false;
+      for(const k of Object.keys(smenaData)){
+        if(k.startsWith(`${displayedYear}-${String(mm+1).padStart(2,'0')}`)){
+          monthHasShifts = true; 
+          break;
+        }
+      }
+      
+      if(!fundsRaw && !monthHasShifts) continue;
+
+      const fundsObj = fundsRaw ? JSON.parse(fundsRaw) : {osmo:0,smenski:0};
+      const osmoM = Number(fundsObj.osmo || 0);
+      const smenskiM = Number(fundsObj.smenski || 0) || 1;
+      const coefM = safeDivide(osmoM, smenskiM);
+
+      const lastDay = new Date(displayedYear, mm+1, 0).getDate();
+      let ostM = 0;
+      for(let d=1; d<=lastDay; d++){
+        const iso = `${displayedYear}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const code = smenaData[iso];
+        if(code && SHIFT_DEFS[code]){
+          const def = SHIFT_DEFS[code];
+          if(def.h === 8) ostM += 8;
+          else if(def.h === 12) ostM += (12 * coefM);
+          else ostM += def.h;
+        }
+      }
+      const diffM = osmoM - ostM;
+      if(diffM > 0) totalDuguje += diffM;
+      else if(diffM < 0) totalZaradio += Math.abs(diffM);
+    }
+
+    yearDuguje.textContent = formatHoursWhole(totalDuguje);
+    yearZaradio.textContent = formatHoursWhole(totalZaradio);
+    
+    // Neto bilans sa poboljšanim stilom
+    const netoBilans = totalZaradio - totalDuguje;
+    yearNeto.textContent = formatHoursWhole(Math.abs(netoBilans));
+    
+    // Ažuriraj stil neto kartice
+    netoBilansContainer.className = 'stat-card neto-card';
+    if(netoBilans > 0) {
+      netoBilansContainer.classList.add('positive');
+      yearNeto.className = 'stat-value neto-positive';
+      netoStatusLabel.textContent = 'Višak';
+      netoStatusLabel.className = 'stat-label neto-positive';
+    } else if(netoBilans < 0) {
+      netoBilansContainer.classList.add('negative');
+      yearNeto.className = 'stat-value neto-negative';
+      netoStatusLabel.textContent = 'Manjak';
+      netoStatusLabel.className = 'stat-label neto-negative';
+    } else {
+      netoBilansContainer.classList.add('zero');
+      yearNeto.className = 'stat-value neto-zero';
+      netoStatusLabel.textContent = 'Nula';
+      netoStatusLabel.className = 'stat-label neto-zero';
+    }
+  }
+
+  // --- POBOLJŠANI EXCEL EXPORT ---
+  function exportToExcel() {
+    try {
+      // Prikupi sve podatke
+      const exportData = prikupiPodatkeZaExport();
+      
+      // Kreiraj Excel workbook sa više sheetova
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Detaljan mesečni pregled
+      const monthlySheet = kreirajMesečniSheet(exportData);
+      XLSX.utils.book_append_sheet(wb, monthlySheet, "Mesečni pregled");
+      
+      // Sheet 2: Godišnji zbir
+      const yearlySheet = kreirajGodišnjiSheet(exportData);
+      XLSX.utils.book_append_sheet(wb, yearlySheet, "Godišnji zbir");
+      
+      // Sheet 3: Svi unosi (raw data)
+      const rawSheet = kreirajRawSheet(exportData);
+      XLSX.utils.book_append_sheet(wb, rawSheet, "Svi unosi");
+      
+      // Generiši i preuzmi fajl
+      const datum = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `Radni_kalendar_${datum}.xlsx`);
+      
+      showMessage('✅ Excel fajl je uspešno preuzet!', 'success');
+      
+    } catch (error) {
+      console.error('Greška pri exportu:', error);
+      showMessage('❌ Došlo je do greške pri generisanju Excel fajla.', 'error');
+    }
+  }
+
+  function prikupiPodatkeZaExport() {
+    const allData = [];
+    const allYears = new Set();
+    
+    // Pronađi sve godine sa podacima
+    for(let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if(key.startsWith('funds-')) {
+        const year = key.split('-')[1];
+        allYears.add(parseInt(year));
+      }
+    }
+    
+    for(const dateStr of Object.keys(smenaData)) {
+      const year = parseInt(dateStr.split('-')[0]);
+      allYears.add(year);
+    }
+    
+    const sortedYears = Array.from(allYears).sort();
+    
+    // Prikupi podatke po godinama i mesecima
+    for(const year of sortedYears) {
+      const yearData = {
+        godina: year,
+        meseci: [],
+        ukupnoDuguje: 0,
+        ukupnoZaradio: 0,
+        neto: 0
+      };
+      
+      for(let mm = 0; mm < 12; mm++) {
+        const monthData = izračunajPodatkeZaMesec(year, mm);
+        if (monthData.imaPodatke) {
+          yearData.meseci.push(monthData);
+          yearData.ukupnoDuguje += monthData.duguje;
+          yearData.ukupnoZaradio += monthData.zaradio;
+        }
+      }
+      
+      yearData.neto = yearData.ukupnoZaradio - yearData.ukupnoDuguje;
+      allData.push(yearData);
+    }
+    
+    return allData;
+  }
+
+  function izračunajPodatkeZaMesec(godina, mesec) {
+    const dateForMonth = new Date(godina, mesec, 1);
+    const key = fundKeyForDate(dateForMonth);
+    const fundsRaw = localStorage.getItem(key);
+    
+    // Provera da li mesec ima podatke
+    let imaPodatke = false;
+    const monthStr = String(mesec + 1).padStart(2, '0');
+    for(const k of Object.keys(smenaData)) {
+      if(k.startsWith(`${godina}-${monthStr}`)) {
+        imaPodatke = true;
+        break;
+      }
+    }
+    
+    if(!fundsRaw && !imaPodatke) {
+      return { imaPodatke: false };
+    }
+
+    const fundsObj = fundsRaw ? JSON.parse(fundsRaw) : {osmo:0, smenski:0};
+    const osmoM = Number(fundsObj.osmo || 0);
+    const smenskiM = Number(fundsObj.smenski || 0) || 1;
+    const coefM = safeDivide(osmoM, smenskiM);
+
+    const lastDay = new Date(godina, mesec + 1, 0).getDate();
+    let ostvarenoM = 0;
+    const dnevniUnosi = [];
+    
+    // Prikupi dnevne unose
+    for(let d = 1; d <= lastDay; d++) {
+      const datumStr = `${godina}-${monthStr}-${String(d).padStart(2, '0')}`;
+      const code = smenaData[datumStr];
+      const komentar = commentsData[datumStr] || '';
+      
+      let satiDana = 0;
+      if(code && SHIFT_DEFS[code]) {
+        const def = SHIFT_DEFS[code];
+        if(def.h === 8) {
+          satiDana = 8;
+        } else if(def.h === 12) {
+          satiDana = 12 * coefM;
+        } else {
+          satiDana = def.h;
+        }
+        ostvarenoM += satiDana;
+      }
+      
+      dnevniUnosi.push({
+        datum: new Date(godina, mesec, d),
+        smena: code || '',
+        komentar: komentar,
+        sati: satiDana
+      });
+    }
+    
+    const diffM = osmoM - ostvarenoM;
+    const dugujeM = diffM > 0 ? diffM : 0;
+    const zaradioM = diffM < 0 ? Math.abs(diffM) : 0;
+    
+    return {
+      imaPodatke: true,
+      mesec: mesec,
+      nazivMeseca: ['Januar','Februar','Mart','April','Maj','Jun','Jul','Avgust','Septembar','Oktobar','Novembar','Decembar'][mesec],
+      osmo: osmoM,
+      smenski: smenskiM,
+      koeficijent: coefM,
+      ostvareno: ostvarenoM,
+      duguje: dugujeM,
+      zaradio: zaradioM,
+      neto: zaradioM - dugujeM,
+      dnevniUnosi: dnevniUnosi
+    };
+  }
+
+  function kreirajMesečniSheet(exportData) {
+    const rows = [];
+    
+    // Zaglavlje
+    rows.push([
+      'GODINA', 'MESEC', 'OSMOČASOVNI FOND', 'SMENSKI FOND', 'KOEFICIJENT',
+      'OSTVARENO (H)', 'DUGUJE (H)', 'ZARADIO (H)', 'NETO BILANS', 'STATUS'
+    ]);
+    
+    // Podaci
+    for(const godinaData of exportData) {
+      for(const mesecData of godinaData.meseci) {
+        const status = mesecData.neto > 0 ? 'VIŠAK' : mesecData.neto < 0 ? 'MANJAK' : 'NULA';
+        
+        rows.push([
+          godinaData.godina,
+          mesecData.nazivMeseca,
+          mesecData.osmo,
+          mesecData.smenski,
+          Math.round(mesecData.koeficijent * 100) / 100,
+          Math.round(mesecData.ostvareno * 100) / 100,
+          Math.round(mesecData.duguje * 100) / 100,
+          Math.round(mesecData.zaradio * 100) / 100,
+          Math.round(Math.abs(mesecData.neto) * 100) / 100,
+          status
+        ]);
+      }
+      
+      // Prazan red između godina
+      rows.push([]);
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    
+    // Formatiranje širina kolona
+    const colWidths = [
+      { wch: 8 },  // GODINA
+      { wch: 12 }, // MESEC
+      { wch: 15 }, // OSMOČASOVNI FOND
+      { wch: 12 }, // SMENSKI FOND
+      { wch: 12 }, // KOEFICIJENT
+      { wch: 14 }, // OSTVARENO
+      { wch: 10 }, // DUGUJE
+      { wch: 12 }, // ZARADIO
+      { wch: 12 }, // NETO BILANS
+      { wch: 10 }  // STATUS
+    ];
+    ws['!cols'] = colWidths;
+    
+    return ws;
+  }
+
+  function kreirajGodišnjiSheet(exportData) {
+    const rows = [];
+    
+    // Zaglavlje
+    rows.push([
+      'GODINA', 'UKUPNO DUGUJE (H)', 'UKUPNO ZARADIO (H)', 'NETO BILANS (H)', 'STATUS'
+    ]);
+    
+    // Podaci
+    for(const godinaData of exportData) {
+      const status = godinaData.neto > 0 ? 'VIŠAK' : godinaData.neto < 0 ? 'MANJAK' : 'NULA';
+      
+      rows.push([
+        godinaData.godina,
+        Math.round(godinaData.ukupnoDuguje * 100) / 100,
+        Math.round(godinaData.ukupnoZaradio * 100) / 100,
+        Math.round(Math.abs(godinaData.neto) * 100) / 100,
+        status
+      ]);
+    }
+    
+    // Ukupno
+    const ukupnoDuguje = exportData.reduce((sum, godina) => sum + godina.ukupnoDuguje, 0);
+    const ukupnoZaradio = exportData.reduce((sum, godina) => sum + godina.ukupnoZaradio, 0);
+    const ukupnoNeto = ukupnoZaradio - ukupnoDuguje;
+    const ukupnoStatus = ukupnoNeto > 0 ? 'VIŠAK' : ukupnoNeto < 0 ? 'MANJAK' : 'NULA';
+    
+    rows.push([]);
+    rows.push([
+      'UKUPNO',
+      Math.round(ukupnoDuguje * 100) / 100,
+      Math.round(ukupnoZaradio * 100) / 100,
+      Math.round(Math.abs(ukupnoNeto) * 100) / 100,
+      ukupnoStatus
+    ]);
+    
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    
+    // Formatiranje širina kolona
+    ws['!cols'] = [
+      { wch: 10 }, // GODINA
+      { wch: 18 }, // UKUPNO DUGUJE
+      { wch: 18 }, // UKUPNO ZARADIO
+      { wch: 16 }, // NETO BILANS
+      { wch: 10 }  // STATUS
+    ];
+    
+    return ws;
+  }
+
+  function kreirajRawSheet(exportData) {
+    const rows = [];
+    
+    // Zaglavlje
+    rows.push([
+      'DATUM', 'DAN', 'SMENA', 'KOMENTAR', 'BROJ SATI', 'GODINA', 'MESEC'
+    ]);
+    
+    // Podaci
+    for(const godinaData of exportData) {
+      for(const mesecData of godinaData.meseci) {
+        for(const dan of mesecData.dnevniUnosi) {
+          if (dan.smena) { // Samo dani sa unetim smenama
+            const daniUSedmici = ['Nedelja', 'Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota'];
+            
+            rows.push([
+              formatirajDatum(dan.datum),
+              daniUSedmici[dan.datum.getDay()],
+              dan.smena,
+              dan.komentar,
+              Math.round(dan.sati * 100) / 100,
+              godinaData.godina,
+              mesecData.nazivMeseca
+            ]);
+          }
+        }
+      }
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    
+    // Formatiranje širina kolona
+    ws['!cols'] = [
+      { wch: 12 }, // DATUM
+      { wch: 12 }, // DAN
+      { wch: 8 },  // SMENA
+      { wch: 25 }, // KOMENTAR
+      { wch: 12 }, // BROJ SATI
+      { wch: 8 },  // GODINA
+      { wch: 12 }  // MESEC
+    ];
+    
+    return ws;
+  }
+
+  function formatirajDatum(datum) {
+    const dan = String(datum.getDate()).padStart(2, '0');
+    const mesec = String(datum.getMonth() + 1).padStart(2, '0');
+    const godina = datum.getFullYear();
+    return `${dan}.${mesec}.${godina}.`;
+  }
+
+  // --- utilities ---
+  function toIsoDate(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function safeDivide(a,b){ if(!isFinite(Number(a)) || !isFinite(Number(b)) || Number(b) === 0) return 0; return Number(a)/Number(b); }
+  function round2(v){ return Math.round(v*100)/100; }
+  function fmtHours(v){
+    const r = Math.round(v*100)/100;
+    if(Number.isInteger(r)) return r + ' h';
+    return r.toFixed(2) + ' h';
+  }
+  function formatHoursWhole(v){
+    const r = Math.round(v*100)/100;
+    if(Math.abs(r - Math.round(r)) < 1e-9) return String(Math.round(r)) + ' h';
+    return r.toFixed(2) + ' h';
+  }
+
+  // --- events ---
+  prevMonthBtn.addEventListener('click', () => {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1);
+    render();
+  });
+  nextMonthBtn.addEventListener('click', () => {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1);
+    render();
+  });
+  todayBtn.addEventListener('click', () => {
+    viewDate = new Date();
+    render();
+  });
+  
+  exportBtn.addEventListener('click', exportToExcel);
+  
+  backupBtn.addEventListener('click', createBackup);
+  
+  restoreBtn.addEventListener('click', () => {
+    // Kreiraj input za odabir fajla
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
+    
+    input.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        restoreFromBackup(file);
+      }
+      document.body.removeChild(input);
+    });
+    
+    document.body.appendChild(input);
+    input.click();
+  });
+
+  osmoInput.addEventListener('input', (e) => {
+    const v = Number(e.target.value||0);
+    saveFundsFor(viewDate, v, Number(smenskiInput.value||0));
+    updateCoefDisplay();
+    computeAndDisplayStats();
+  });
+  smenskiInput.addEventListener('input', (e) => {
+    const v = Number(e.target.value||0);
+    saveFundsFor(viewDate, Number(osmoInput.value||0), v);
+    updateCoefDisplay();
+    computeAndDisplayStats();
+  });
+
+  function updateCoefDisplay(){
+    const funds = loadFundsFor(viewDate);
+    const osmo = Number(funds.osmo||0);
+    const smenski = Number(funds.smenski||0) || 1;
+    if(smenski === 0){
+      coefDisplay.textContent = 'Koeficijent: —';
+      return;
+    }
+    const coef = safeDivide(osmo, smenski);
+    coefDisplay.textContent = `Koeficijent: ${isFinite(coef) ? round2(coef) : '—'}`;
+  }
+
+  window.addEventListener('storage', (e) => {
+    if(e.key === 'smena-data'){ smenaData = loadSmenaData(); render(); }
+    if(e.key === 'comments-data'){ commentsData = loadCommentsData(); render(); }
+  });
+
+  window.addEventListener('beforeunload', () => { 
+    saveSmenaData(); 
+    saveCommentsData();
+  });
+
+  // Dodaj dnevnu proveru praznika
+  setInterval(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    
+    // Ako je prvi dan u mesecu, proveri da li treba učitati nove praznike
+    if (now.getDate() === 1) {
+      console.log('Prvi dan u mesecu - proveravam praznike...');
+      proveriAktuelnostPraznika();
+    }
+  }, 24 * 60 * 60 * 1000); // Jednom dnevno
+
+}
+</script>
+
+<!-- Registracija service workera -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(registration => {
+          console.log('Service Worker registrovan:', registration);
+        })
+        .catch(error => {
+          console.error('Greška u registraciji SW:', error);
+        });
+    });
+  }
+</script>
+</body>
+</html>
