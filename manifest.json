@@ -3,15 +3,17 @@
   "short_name": "RadniKalendar",
   "description": "Radni kalendar za praćenje smena i sati",
   "version": "2.0.0",
-  "start_url": "index.html",
+  "start_url": "/index.html",
   "display": "standalone",
-  "display_override": ["window-controls-overlay"],
+  "display_override": ["window-controls-overlay", "fullscreen", "minimal-ui"],
   "background_color": "#f4f6f9",
   "theme_color": "#4f46e5",
   "orientation": "any",
   "categories": ["productivity", "utilities"],
   "lang": "sr",
   "dir": "ltr",
+  "id": "radni-kalendar-v2",
+  "scope": "/",
   "icons": [
     {
       "src": "icon-192.png",
@@ -43,13 +45,15 @@
       "src": "screenshot-mobile.png",
       "sizes": "375x812",
       "type": "image/png",
-      "form_factor": "narrow"
+      "form_factor": "narrow",
+      "label": "Mobilni prikaz Radnog kalendara"
     },
     {
       "src": "screenshot-desktop.png",
       "sizes": "1280x720",
       "type": "image/png",
-      "form_factor": "wide"
+      "form_factor": "wide",
+      "label": "Desktop prikaz Radnog kalendara"
     }
   ],
   "shortcuts": [
@@ -57,40 +61,13 @@
       "name": "Današnji dan",
       "short_name": "Danas",
       "description": "Idi na današnji dan",
-      "url": "index.html#today"
+      "url": "/index.html#today"
     },
     {
       "name": "Novi mesec",
       "short_name": "Mesec",
       "description": "Dodaj fond za mesec",
-      "url": "index.html#add-month"
+      "url": "/index.html#add-month"
     }
-  ],
-  "edge_side_panel": {
-    "preferred_width": 400
-  },
-  "protocol_handlers": [
-    {
-      "protocol": "web+radnikalendar",
-      "url": "index.html?action=%s"
-    }
-  ],
-  "share_target": {
-    "action": "index.html",
-    "method": "GET",
-    "params": {
-      "title": "name",
-      "text": "description",
-      "url": "link"
-    }
-  },
-  "file_handlers": [
-    {
-      "action": "index.html",
-      "accept": {
-        "application/json": [".json"]
-      }
-    }
-  ],
-  "related_applications": []
+  ]
 }
